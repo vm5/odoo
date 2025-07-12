@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   IconButton,
   Badge,
@@ -18,11 +18,18 @@ import { useNotifications } from '../../contexts/NotificationContext';
 
 const NotificationBell = () => {
   const [anchorEl, setAnchorEl] = useState(null);
-  const { notifications, unreadCount, markAsRead } = useNotifications();
+  const { notifications, unreadCount, markAsRead, loading, error, fetchNotifications } = useNotifications();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    console.log('Current notifications:', notifications);
+    console.log('Unread count:', unreadCount);
+  }, [notifications, unreadCount]);
 
   const handleClick = (event) => {
     setAnchorEl(event.currentTarget);
+    // Refresh notifications when opening the menu
+    fetchNotifications();
   };
 
   const handleClose = () => {
@@ -73,7 +80,17 @@ const NotificationBell = () => {
           },
         }}
       >
-        <Badge badgeContent={unreadCount} color="error">
+        <Badge 
+          badgeContent={unreadCount} 
+          color="error"
+          sx={{
+            '& .MuiBadge-badge': {
+              backgroundColor: '#ff4444',
+              color: 'white',
+              fontWeight: 'bold',
+            }
+          }}
+        >
           <Notifications />
         </Badge>
       </IconButton>
@@ -103,7 +120,21 @@ const NotificationBell = () => {
         </Box>
 
         <List sx={{ py: 0 }}>
-          {notifications.length === 0 ? (
+          {loading ? (
+            <ListItem>
+              <ListItemText
+                primary="Loading notifications..."
+                sx={{ textAlign: 'center', color: 'text.secondary' }}
+              />
+            </ListItem>
+          ) : error ? (
+            <ListItem>
+              <ListItemText
+                primary={error}
+                sx={{ textAlign: 'center', color: 'error.main' }}
+              />
+            </ListItem>
+          ) : notifications.length === 0 ? (
             <ListItem>
               <ListItemText
                 primary="No notifications"
@@ -124,7 +155,7 @@ const NotificationBell = () => {
                   }}
                 >
                   <ListItemAvatar>
-                    <Avatar sx={{ bgcolor: 'primary.main' }}>
+                    <Avatar sx={{ bgcolor: notification.read ? 'grey.500' : 'primary.main' }}>
                       {notification.type === 'answer' ? 'A' :
                        notification.type === 'comment' ? 'C' : '@'}
                     </Avatar>
@@ -135,6 +166,7 @@ const NotificationBell = () => {
                     primaryTypographyProps={{
                       variant: 'body2',
                       color: notification.read ? 'text.primary' : 'primary',
+                      sx: { fontWeight: notification.read ? 'normal' : 'bold' }
                     }}
                     secondaryTypographyProps={{
                       variant: 'caption',

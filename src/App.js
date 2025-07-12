@@ -7,6 +7,7 @@ import { NotificationProvider } from './contexts/NotificationContext';
 import Layout from './components/layout/Layout';
 import MicroInteractions from './components/interactions/MicroInteractions';
 import theme from './theme/darkTheme';
+import Chatbot from './components/chatbot/Chatbot';
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
           <NotificationProvider>
             <MicroInteractions />
             <Layout />
+            <Chatbot />
           </NotificationProvider>
         </AuthProvider>
       </Router>

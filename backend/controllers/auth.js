@@ -16,15 +16,26 @@ exports.register = async (req, res) => {
       });
     }
 
-    // Create user
+    // Create user with default XP and streak
     user = await User.create({
       name,
       email,
-      password
+      password,
+      xp: {
+        total: 0,
+        level: 1,
+        actions: []
+      },
+      streak: {
+        current: 0,
+        longest: 0,
+        lastActionDate: null
+      }
     });
 
     sendTokenResponse(user, 201, res);
   } catch (err) {
+    console.error('Registration error:', err);
     res.status(400).json({
       success: false,
       error: err.message
@@ -65,8 +76,34 @@ exports.login = async (req, res) => {
       });
     }
 
+    // Initialize XP and streak if they don't exist
+    let needsSave = false;
+    
+    if (!user.xp) {
+      user.xp = {
+        total: 0,
+        level: 1,
+        actions: []
+      };
+      needsSave = true;
+    }
+
+    if (!user.streak || typeof user.streak === 'number') {
+      user.streak = {
+        current: 0,
+        longest: 0,
+        lastActionDate: null
+      };
+      needsSave = true;
+    }
+
+    if (needsSave) {
+      await user.save();
+    }
+
     sendTokenResponse(user, 200, res);
   } catch (err) {
+    console.error('Login error:', err);
     res.status(400).json({
       success: false,
       error: err.message

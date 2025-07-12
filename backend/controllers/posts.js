@@ -1,4 +1,5 @@
 const Post = require('../models/Post');
+const User = require('../models/User');
 
 // @desc    Get all posts
 // @route   GET /api/posts
@@ -8,7 +9,18 @@ exports.getPosts = async (req, res) => {
     const { hub, type, author } = req.query;
     const query = {};
 
-    if (hub) query.hub = hub;
+    // Validate and sanitize hub parameter
+    if (hub) {
+      const sanitizedHub = hub.toLowerCase().trim();
+      if (!sanitizedHub) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid hub name'
+        });
+      }
+      query.hub = sanitizedHub;
+    }
+
     if (type) query.type = type;
     if (author) query.author = author;
 
@@ -123,6 +135,16 @@ exports.createPost = async (req, res) => {
 
     const post = await Post.create(req.body);
     
+    // Add XP for creating post/answer
+    const xpResult = await req.user.addXP(
+      req.body.type === 'answer' ? 'answer_added' : 'post_created'
+    );
+
+    // Emit XP update event
+    if (xpResult) {
+      global.io.emit('xp_update', { userId: req.user.id });
+    }
+
     // If this is an answer, add it to the parent question's answers array
     if (post.type === 'answer' && post.parentPost) {
       await Post.findByIdAndUpdate(post.parentPost, {
@@ -145,7 +167,8 @@ exports.createPost = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      data: post
+      data: post,
+      xp: xpResult
     });
   } catch (err) {
     res.status(400).json({
@@ -284,6 +307,7 @@ exports.votePost = async (req, res) => {
     );
 
     const voteValue = req.body.isUpvote ? 1 : -1;
+    let xpResult = null;
 
     if (existingVote) {
       // Remove vote if clicking the same button
@@ -294,6 +318,16 @@ exports.votePost = async (req, res) => {
       } else {
         // Change vote
         existingVote.value = voteValue;
+        
+        // Add XP for receiving upvote if changing from downvote
+        if (voteValue === 1) {
+          const postAuthor = await User.findById(post.author);
+          xpResult = await postAuthor.addXP('upvote_received');
+          // Emit XP update event
+          if (xpResult) {
+            global.io.emit('xp_update', { userId: post.author.toString() });
+          }
+        }
       }
     } else {
       // Add new vote
@@ -301,6 +335,16 @@ exports.votePost = async (req, res) => {
         user: req.user.id,
         value: voteValue
       });
+
+      // Add XP for receiving upvote
+      if (voteValue === 1) {
+        const postAuthor = await User.findById(post.author);
+        xpResult = await postAuthor.addXP('upvote_received');
+        // Emit XP update event
+        if (xpResult) {
+          global.io.emit('xp_update', { userId: post.author.toString() });
+        }
+      }
     }
 
     // Calculate total votes
@@ -316,7 +360,63 @@ exports.votePost = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: post
+      data: post,
+      xp: xpResult
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      error: err.message
+    });
+  }
+};
+
+// @desc    Accept an answer
+// @route   PUT /api/posts/:id/accept
+// @access  Private
+exports.acceptAnswer = async (req, res) => {
+  try {
+    const answer = await Post.findById(req.params.id);
+
+    if (!answer || answer.type !== 'answer') {
+      return res.status(404).json({
+        success: false,
+        error: 'Answer not found'
+      });
+    }
+
+    const question = await Post.findById(answer.parentPost);
+    
+    // Only question author can accept
+    if (question.author.toString() !== req.user.id) {
+      return res.status(401).json({
+        success: false,
+        error: 'Not authorized to accept this answer'
+      });
+    }
+
+    // Update answer and question
+    answer.isAccepted = true;
+    question.hasAcceptedAnswer = true;
+
+    await answer.save();
+    await question.save();
+
+    // Add XP for accepted answer
+    const answerAuthor = await User.findById(answer.author);
+    const xpResult = await answerAuthor.addXP('answer_accepted');
+    
+    // Emit XP update event
+    if (xpResult) {
+      global.io.emit('xp_update', { userId: answer.author.toString() });
+    }
+
+    await answer.populate('author', 'name level streak avatar');
+
+    res.status(200).json({
+      success: true,
+      data: answer,
+      xp: xpResult
     });
   } catch (err) {
     res.status(400).json({

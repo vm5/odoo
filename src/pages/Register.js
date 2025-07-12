@@ -41,9 +41,9 @@ const Register = () => {
 
     try {
       const result = await register(
+        formData.name,
         formData.email,
-        formData.password,
-        formData.name
+        formData.password
       );
       
       if (result.success) {

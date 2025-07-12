@@ -133,3 +133,31 @@ export const votePoll = async (id, optionIndex) => {
     throw error;
   }
 }; 
+
+export const voteOnPost = async (postId, voteType) => {
+  try {
+    const { data } = await axios.put(
+      `${API_URL}/posts/${postId}/vote`,
+      { value: voteType },
+      getAuthConfig()
+    );
+    return data.data;
+  } catch (error) {
+    console.error('Failed to vote on post:', error);
+    throw error;
+  }
+};
+
+export const acceptAnswer = async (answerId) => {
+  try {
+    const { data } = await axios.put(
+      `${API_URL}/posts/${answerId}/accept`,
+      {},
+      getAuthConfig()
+    );
+    return data.data;
+  } catch (error) {
+    console.error('Failed to accept answer:', error);
+    throw error;
+  }
+}; 

@@ -26,8 +26,15 @@ const Login = () => {
     setError('');
     setLoading(true);
 
+    // Basic validation
+    if (!email.trim() || !password) {
+      setError('Please provide both email and password');
+      setLoading(false);
+      return;
+    }
+
     try {
-      const result = await login(email, password);
+      const result = await login(email.trim(), password);
       if (result.success) {
         // Navigate to the return URL after successful login
         navigate(from, { replace: true });
@@ -35,7 +42,8 @@ const Login = () => {
         setError(result.error || 'Failed to log in');
       }
     } catch (error) {
-      setError('Failed to log in');
+      console.error('Login error:', error);
+      setError(error?.message || 'An unexpected error occurred');
     }
 
     setLoading(false);
@@ -74,7 +82,7 @@ const Login = () => {
           </Alert>
         )}
 
-        <Box component="form" onSubmit={handleSubmit}>
+        <Box component="form" onSubmit={handleSubmit} noValidate>
           <TextField
             margin="normal"
             required
@@ -86,6 +94,8 @@ const Login = () => {
             autoFocus
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            error={!!error && !email.trim()}
+            helperText={error && !email.trim() ? 'Email is required' : ''}
           />
 
           <TextField
@@ -99,6 +109,8 @@ const Login = () => {
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            error={!!error && !password}
+            helperText={error && !password ? 'Password is required' : ''}
           />
 
           <Button
@@ -109,6 +121,24 @@ const Login = () => {
             disabled={loading}
           >
             {loading ? 'Logging in...' : 'Log In'}
+          </Button>
+
+          {/* Debug button */}
+          <Button
+            fullWidth
+            variant="outlined"
+            sx={{ mb: 2 }}
+            onClick={() => {
+              const userData = JSON.parse(localStorage.getItem('user'));
+              console.log('DEBUG - Current user data:', userData);
+              if (userData?._id) {
+                alert(`Your user ID is: ${userData._id}`);
+              } else {
+                alert('No user ID found - please log in first');
+              }
+            }}
+          >
+            Show My User ID
           </Button>
 
           <Typography variant="body2" align="center">

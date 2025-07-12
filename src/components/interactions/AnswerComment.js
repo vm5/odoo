@@ -35,41 +35,33 @@ const AnswerComment = ({
   const handleReplySubmit = async () => {
     if (!replyContent.trim()) return;
 
-    // Extract mentions from the reply content
-    const mentionRegex = /(?:<span class="tox-mention" data-mention-id="([^"]+)">@([^<]+)<\/span>|@([a-zA-Z0-9_-]+))/g;
-    const mentions = [...replyContent.matchAll(mentionRegex)];
-    
-    // Create the comment first
-    const comment = await onComment(replyContent);
-    
-    // Send notifications for mentions
-    mentions.forEach(match => {
-      const userId = match[1] || match[3];  // match[1] for rich text, match[3] for plain text
-      const username = match[2] || match[3]; // match[2] for rich text, match[3] for plain text
+    try {
+      // Create the comment first
+      const comment = await onComment(replyContent);
       
-      if (userId && username && userId !== user._id) {
-        socketService.emitMentionNotification(
-          userId,
-          answer._id,
-          user.name
-        );
-      }
-    });
+      // Extract mentions from the reply content
+      const mentionRegex = /@([a-zA-Z0-9_-]+)/g;
+      const mentions = [...replyContent.matchAll(mentionRegex)];
+      
+      // Send notifications for mentions
+      mentions.forEach(match => {
+        const username = match[1];  // Get the username without the @ symbol
+        if (username) {
+          console.log('Found mention:', username);
+          // We'll look up the user by username instead of assuming it's an ID
+          socketService.emitMentionNotification(
+            username,
+            comment._id,
+            user.name
+          );
+        }
+      });
 
-    // Notify the answer author about the comment
-    if (answer.author?._id && answer.author._id !== user._id) {
-      socketService.emitCommentNotification(
-        answer._id,
-        comment._id,
-        answer.author._id
-      );
-      
-      // Trigger notification sound
-      window.triggerInteraction('notification');
+      setReplyContent('');
+      setShowReply(false);
+    } catch (error) {
+      console.error('Failed to submit reply:', error);
     }
-
-    setReplyContent('');
-    setShowReply(false);
   };
 
   return (
@@ -97,6 +89,14 @@ const AnswerComment = ({
           <Stack direction="row" alignItems="center" spacing={1}>
             <Typography variant="subtitle2" fontWeight="medium">
               {answer.author?.name || 'Anonymous'}
+              <Typography 
+                component="span" 
+                variant="caption" 
+                color="text.secondary" 
+                sx={{ ml: 1 }}
+              >
+                (ID: {answer.author?._id || 'N/A'})
+              </Typography>
             </Typography>
             <Typography variant="caption" color="text.secondary">
               {new Date(answer.createdAt).toLocaleDateString()}

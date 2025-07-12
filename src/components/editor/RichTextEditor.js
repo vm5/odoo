@@ -116,30 +116,35 @@ const RichTextEditor = ({ value, onChange, placeholder }) => {
           placeholder: placeholder || 'Write your content here...',
           mentions: {
             delimiter: '@',
-            minChars: 1,
+            minChars: 0,
             items: 10,
             source: async (query, process) => {
-              if (query.length === 0) {
-                // Show all users when @ is typed
-                process(users.map(user => ({
+              try {
+                // Show all users when @ is typed with no query
+                if (!query) {
+                  process(users.map(user => ({
+                    id: user._id,
+                    name: user.name,
+                    value: `@${user.name}`
+                  })));
+                  return;
+                }
+
+                // Fetch filtered users from the server
+                await fetchUsers(query);
+                
+                // Process the matches
+                const items = users.map(user => ({
                   id: user._id,
                   name: user.name,
                   value: `@${user.name}`
-                })));
-                return;
+                }));
+                
+                process(items);
+              } catch (error) {
+                console.error('Error fetching mentions:', error);
+                process([]); // Return empty array on error
               }
-
-              // Fetch filtered users from the server
-              await fetchUsers(query);
-              
-              // Process the matches
-              const items = users.map(user => ({
-                id: user._id,
-                name: user.name,
-                value: `@${user.name}`
-              }));
-              
-              process(items);
             },
             insert: (item) => {
               return `<span class="tox-mention" data-mention-id="${item.id}">@${item.name}</span>`;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
@@ -22,6 +22,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import ProtectedRoute from '../auth/ProtectedRoute';
 import Stack from '@mui/material/Stack';
 import NotificationBell from './NotificationBell';
+import LinearProgress from '@mui/material/LinearProgress';
+import UserMenu from './UserMenu';
 
 // Pages
 import Home from '../../pages/Home';
@@ -33,212 +35,122 @@ import AdminDashboard from '../../pages/AdminDashboard';
 import Hub from '../hub/Hub';
 import Profile from '../profile/Profile';
 
-const Layout = () => {
-  const [anchorEl, setAnchorEl] = useState(null);
-  const navigate = useNavigate();
-  const { isAuthenticated, isAdmin, user, logout } = useAuth();
-  
-  const streakCount = 5;
-  const level = "Bug Slayer 🔥";
-  const xp = 1250;
+const Layout = ({ children }) => {
+  const { user, isAuthenticated } = useAuth();
+  const [xpCount, setXpCount] = useState(0);
+  const [showXPGain, setShowXPGain] = useState(false);
+  const [xpGained, setXpGained] = useState(0);
 
-  const handleMenu = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
+  useEffect(() => {
+    if (user?.xp?.total !== undefined) {
+      setXpCount(user.xp.total);
+    }
+  }, [user?.xp?.total]);
 
-  const handleClose = () => {
-    setAnchorEl(null);
-  };
+  // Listen for XP gain animations
+  useEffect(() => {
+    const handleXPGain = (data) => {
+      setXpGained(data.amount);
+      setShowXPGain(true);
+      setTimeout(() => setShowXPGain(false), 2000);
+    };
 
-  const handleLogout = () => {
-    logout();
-    handleClose();
-    navigate('/');
-  };
+    window.addEventListener('xp_gained', handleXPGain);
+    return () => window.removeEventListener('xp_gained', handleXPGain);
+  }, []);
 
   return (
-    <>
-      <AppBar position="fixed">
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <AppBar position="sticky">
         <Toolbar>
-          <Typography
-            variant="h6"
-            component={Link}
-            to="/"
-            sx={{
-              flexGrow: 1,
-              textDecoration: 'none',
-              color: 'primary.main',
-              fontWeight: 'bold',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1,
-            }}
-          >
-            <Pets sx={{ fontSize: 28 }} />
-            StackIt 💬
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+            StackIt
           </Typography>
 
-          {isAuthenticated ? (
+          {isAuthenticated && (
             <>
-              <Button
-                variant="contained"
-                component={Link}
-                to="/ask"
+              <Box 
                 sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center',
                   mr: 2,
-                  background: 'linear-gradient(45deg, #FF6B35 30%, #FFD700 90%)',
-                  color: 'white',
-                  '&:hover': {
-                    background: 'linear-gradient(45deg, #FF5B25 30%, #FFD600 90%)',
-                  }
+                  position: 'relative'
                 }}
-                startIcon={<span>🤔</span>}
               >
-                Ask Away!
-              </Button>
-
-              {/* Streak Counter */}
-              <Tooltip title="Knowledge Streak 🔥">
-                <Chip
-                  icon={<LocalFireDepartment color="error" />}
-                  label={`${streakCount} days`}
-                  sx={{ 
-                    mr: 2, 
-                    background: 'linear-gradient(45deg, #FF6B35 30%, #FFD700 90%)',
-                    color: 'white'
-                  }}
-                />
-              </Tooltip>
-
-              {/* Level Badge */}
-              <Tooltip title={`${xp} XP to next level!`}>
-                <Chip
-                  icon={<EmojiEvents sx={{ color: '#FFD700' }} />}
-                  label={level}
-                  sx={{ 
-                    mr: 2, 
-                    background: 'linear-gradient(45deg, #4CAF50 30%, #8BC34A 90%)',
-                    color: 'white'
-                  }}
-                />
-              </Tooltip>
-
-              {/* Notification Bell */}
-              <NotificationBell />
-
-              <Tooltip title="Your Vibe">
-                <IconButton
-                  onClick={handleMenu}
-                  sx={{ 
-                    background: 'linear-gradient(45deg, #7C4DFF 30%, #00E5FF 90%)',
+                <Box
+                  sx={{
+                    px: 2,
+                    py: 0.5,
+                    borderRadius: '20px',
+                    background: 'linear-gradient(45deg, #FF6B6B 30%, #FFB88C 90%)',
+                    color: 'white',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    boxShadow: '0 0 10px rgba(255,255,255,0.3)',
+                    transition: 'all 0.3s ease',
                     '&:hover': {
-                      background: 'linear-gradient(45deg, #6C3DFF 30%, #00D5FF 90%)',
+                      transform: 'scale(1.05)',
+                      boxShadow: '0 0 15px rgba(255,255,255,0.5)',
                     }
                   }}
                 >
-                  <Avatar
-                    alt={user?.name || 'User'}
-                    src={user?.avatar}
-                    sx={{ width: 32, height: 32 }}
-                  >
-                    {user?.name?.charAt(0) || <AccountCircle />}
-                  </Avatar>
-                </IconButton>
-              </Tooltip>
-
-              <Menu
-                anchorEl={anchorEl}
-                open={Boolean(anchorEl)}
-                onClose={handleClose}
-                PaperProps={{
-                  sx: {
-                    mt: 1,
-                    background: 'rgba(255,255,255,0.9)',
-                    backdropFilter: 'blur(8px)',
-                    borderRadius: 2,
-                  }
-                }}
-              >
-                {isAdmin && (
-                  <MenuItem
-                    onClick={() => {
-                      handleClose();
-                      navigate('/admin');
+                  <Typography 
+                    variant="body1" 
+                    sx={{ 
+                      fontWeight: 'bold',
+                      textShadow: '1px 1px 2px rgba(0,0,0,0.3)'
                     }}
                   >
-                    👑 Admin Dashboard
-                  </MenuItem>
+                    {xpCount} XP 🔥
+                  </Typography>
+                </Box>
+
+                {/* XP Gain Animation */}
+                {showXPGain && (
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: '-20px',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      color: '#4CAF50',
+                      fontWeight: 'bold',
+                      animation: 'float 2s ease-out forwards',
+                      '@keyframes float': {
+                        '0%': {
+                          opacity: 1,
+                          transform: 'translateX(-50%) translateY(0)'
+                        },
+                        '100%': {
+                          opacity: 0,
+                          transform: 'translateX(-50%) translateY(-30px)'
+                        }
+                      }
+                    }}
+                  >
+                    +{xpGained} XP
+                  </Box>
                 )}
-                <MenuItem
-                  onClick={() => {
-                    handleClose();
-                    navigate('/profile');
-                  }}
-                >
-                  🎭 Profile
-                </MenuItem>
-                <MenuItem onClick={handleLogout}>👋 Peace Out</MenuItem>
-              </Menu>
+              </Box>
+
+              <NotificationBell />
+              <UserMenu />
             </>
-          ) : (
-            <>
-              <Button
-                component={Link}
-                to="/login"
-                variant="contained"
-                sx={{ mr: 2 }}
-              >
-                Login
-              </Button>
-              <Button
-                component={Link}
-                to="/register"
-                variant="contained"
-                color="secondary"
-              >
-                Register
-              </Button>
-            </>
+          )}
+
+          {!isAuthenticated && (
+            <Button color="inherit" component={Link} to="/login">
+              Login
+            </Button>
           )}
         </Toolbar>
       </AppBar>
 
-      <Box component="main" sx={{ pt: 8 }}>
-        <Container maxWidth="lg" sx={{ py: 4 }}>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/question/:id" element={<QuestionDetail />} />
-            <Route
-              path="/ask"
-              element={
-                <ProtectedRoute>
-                  <AskQuestion />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin"
-              element={
-                <ProtectedRoute adminOnly>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <Profile />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/hub/:hubName" element={<Hub />} />
-          </Routes>
-        </Container>
+      <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
+        {children}
       </Box>
-    </>
+    </Box>
   );
 };
 

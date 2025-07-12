@@ -22,13 +22,13 @@ import {
 import { useParams, Link as RouterLink } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import RichTextEditor from '../components/editor/RichTextEditor';
-import { getPost, createPost, updatePost, votePost } from '../services/postService';
+import { getPost, createPost, updatePost, votePost, voteOnPost, acceptAnswer } from '../services/postService';
 import socketService from '../services/socketService';
 import AnswerComment from '../components/interactions/AnswerComment';
 
 const QuestionDetail = () => {
   const { id } = useParams();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, triggerXPAction } = useAuth();
   const [question, setQuestion] = useState(null);
   const [answers, setAnswers] = useState([]);
   const [newAnswer, setNewAnswer] = useState('');
@@ -83,108 +83,82 @@ const QuestionDetail = () => {
     }
   };
 
-  const handleAnswerSubmit = async () => {
-    if (!isAuthenticated) {
-      setError('Please log in to post an answer');
-      return;
-    }
-
-    if (!newAnswer.trim()) {
-      setError('Answer cannot be empty');
-      return;
-    }
-
-    setSubmitting(true);
-    setError(null);
+  const handleAnswerSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
 
     try {
-      const newAnswerResponse = await createPost({
+      const response = await createPost({
         type: 'answer',
         content: newAnswer,
-        parentPost: id,
+        parentPost: id
       });
 
-      setNewAnswer('');
-      setSuccess(true);
-      
-      // Emit the new post event
-      socketService.emitNewPost(newAnswerResponse);
-
-      // Extract mentions from the answer content
-      const mentionRegex = /(?:<span class="tox-mention" data-mention-id="([^"]+)">@([^<]+)<\/span>|@([a-zA-Z0-9_-]+))/g;
-      const mentions = [...newAnswer.matchAll(mentionRegex)];
-      
-      // Send notifications for mentions
-      mentions.forEach(match => {
-        // Handle both rich text editor mentions and plain text mentions
-        const userId = match[1] || match[3];  // match[1] for rich text, match[3] for plain text
-        const username = match[2] || match[3]; // match[2] for rich text, match[3] for plain text
-        
-        if (userId && username && userId !== user._id) {
-          socketService.emitMentionNotification(
-            userId,
-            newAnswerResponse._id,
-            user.name
-          );
-        }
-      });
-
-      // Emit notification for the question author
-      if (question?.author?._id && question.author._id !== user._id) {
-        console.log('Emitting answer notification:', {
-          questionId: id,
-          answerId: newAnswerResponse._id,
-          authorId: question.author._id
-        });
-        
-        socketService.emitAnswerNotification(
-          id, // questionId
-          newAnswerResponse._id, // answerId
-          question.author._id // authorId
-        );
-
-        // Trigger notification sound
-        window.triggerInteraction?.('notification');
-      }
-
-      // Fetch updated question to get the new answers array
-      fetchQuestionAndAnswers();
+      // Trigger XP for answering
+      triggerXPAction('answer_added');
 
       // Show success message
       window.triggerInteraction?.('answer_posted');
-    } catch (err) {
-      console.error('Error posting answer:', err);
-      setError(err?.response?.data?.error || 'Failed to post answer');
-    } finally {
-      setSubmitting(false);
+
+      // Clear form and refresh
+      setNewAnswer('');
+      fetchQuestionAndAnswers();
+    } catch (error) {
+      setError(error.message || 'Failed to submit answer');
+    }
+    setLoading(false);
+  };
+
+  const handleCommentSubmit = async (answerId, comment) => {
+    try {
+      const response = await createPost({
+        type: 'comment',
+        content: comment,
+        parentPost: answerId
+      });
+
+      // Trigger XP for commenting
+      triggerXPAction('comment_added');
+
+      // Show success message
+      window.triggerInteraction?.('comment_posted');
+
+      // Refresh the answers to show new comment
+      fetchQuestionAndAnswers();
+    } catch (error) {
+      console.error('Failed to add comment:', error);
     }
   };
 
-  const handleVote = async (answerId, value) => {
-    if (!isAuthenticated) {
-      setError('Please log in to vote');
-      return;
-    }
-
+  const handleVote = async (postId, voteType) => {
     try {
-      await votePost(answerId, value);
-      fetchQuestionAndAnswers(); // Refresh votes
-    } catch (err) {
-      setError('Failed to vote');
+      await voteOnPost(postId, voteType);
+      
+      // Trigger XP for voting
+      triggerXPAction('vote_cast');
+
+      // Refresh to show updated votes
+      fetchQuestionAndAnswers();
+    } catch (error) {
+      console.error('Failed to vote:', error);
     }
   };
 
   const handleAcceptAnswer = async (answerId) => {
-    if (!isAuthenticated || (question?.author?._id !== user?._id)) {
-      setError('Only the question author can accept answers');
-      return;
-    }
-
     try {
-      await updatePost(id, { acceptedAnswer: answerId });
-      fetchQuestionAndAnswers(); // Refresh question and answers
-    } catch (err) {
-      setError('Failed to accept answer');
+      await acceptAnswer(answerId);
+      
+      // Trigger XP for accepting an answer
+      triggerXPAction('answer_accepted');
+
+      // Show success message
+      window.triggerInteraction?.('answer_accepted');
+
+      // Refresh to show accepted answer
+      fetchQuestionAndAnswers();
+    } catch (error) {
+      console.error('Failed to accept answer:', error);
     }
   };
 
@@ -369,6 +343,20 @@ const QuestionDetail = () => {
 
                       // Emit the new post event
                       socketService.emitNewPost(commentResponse);
+
+                      // Emit notification for the comment
+                      if (answer.author?._id && answer.author._id !== user?._id) {
+                        console.log('Emitting comment notification:', {
+                          answerId: answer._id,
+                          commentId: commentResponse._id,
+                          authorId: answer.author._id
+                        });
+                        socketService.emitCommentNotification(
+                          answer._id,
+                          commentResponse._id,
+                          answer.author._id
+                        );
+                      }
 
                       // Refresh the answers to show the new comment
                       fetchQuestionAndAnswers();
