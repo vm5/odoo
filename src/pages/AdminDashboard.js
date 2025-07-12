@@ -1,203 +1,146 @@
-import React, { useState } from 'react';
-import Box from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
-import Paper from '@mui/material/Paper';
-import Tabs from '@mui/material/Tabs';
-import Tab from '@mui/material/Tab';
-import List from '@mui/material/List';
-import ListItem from '@mui/material/ListItem';
-import ListItemText from '@mui/material/ListItemText';
-import ListItemSecondaryAction from '@mui/material/ListItemSecondaryAction';
-import Button from '@mui/material/Button';
-import IconButton from '@mui/material/IconButton';
-import Dialog from '@mui/material/Dialog';
-import DialogTitle from '@mui/material/DialogTitle';
-import DialogContent from '@mui/material/DialogContent';
-import DialogActions from '@mui/material/DialogActions';
-import TextField from '@mui/material/TextField';
+import React, { useState, useEffect } from 'react';
 import {
-  Block,
-  Delete,
-  Warning,
-  Message,
+  Box,
+  Typography,
+  Grid,
+  Paper,
+  Stack,
+  CircularProgress,
+  Alert,
+} from '@mui/material';
+import {
+  SupervisorAccount,
+  Flag,
 } from '@mui/icons-material';
-import { useAuth } from '../contexts/AuthContext';
-import { Navigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
-const TabPanel = ({ children, value, index }) => (
-  <Box hidden={value !== index} sx={{ mt: 3 }}>
-    {value === index && children}
-  </Box>
-);
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 const AdminDashboard = () => {
-  const { isAdmin } = useAuth();
-  const [tabValue, setTabValue] = useState(0);
-  const [messageDialogOpen, setMessageDialogOpen] = useState(false);
-  const [platformMessage, setPlatformMessage] = useState('');
+  const navigate = useNavigate();
+  const [stats, setStats] = useState({
+    totalPosts: 0,
+    flaggedPosts: 0,
+    totalUsers: 0,
+    activeUsers: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Mock data - will be replaced with real data later
-  const reportedContent = [
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const fetchStats = async () => {
+    try {
+      setLoading(true);
+      const [postsStats, usersStats] = await Promise.all([
+        axios.get(`${API_URL}/posts/stats`),
+        axios.get(`${API_URL}/auth/stats`)
+      ]);
+
+      setStats({
+        totalPosts: postsStats.data.data.total || 0,
+        flaggedPosts: postsStats.data.data.flagged || 0,
+        totalUsers: usersStats.data.data.total || 0,
+        activeUsers: usersStats.data.data.active || 0,
+      });
+    } catch (err) {
+      console.error('Error fetching stats:', err);
+      setError('Failed to load dashboard statistics');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleNavigation = (path) => {
+    console.log('Navigating to:', path);
+    navigate(path);
+  };
+
+  const adminActions = [
     {
-      id: 1,
-      type: 'question',
-      title: 'How to hack a website?',
-      author: 'suspicious_user',
-      reason: 'Inappropriate content',
-      reportedBy: 'concerned_user',
-      date: '2023-08-20',
+      title: 'Content Moderation',
+      description: `Manage ${stats.totalPosts} posts • ${stats.flaggedPosts} flagged`,
+      icon: <Flag />,
+      path: '/admin/moderation',
+      color: '#f44336',
     },
-    // Add more mock reported content
+    {
+      title: 'User Management',
+      description: `${stats.totalUsers} total users • ${stats.activeUsers} active`,
+      icon: <SupervisorAccount />,
+      path: '/admin/users',
+      color: '#2196f3',
+    },
   ];
 
-  const bannedUsers = [
-    {
-      id: 1,
-      username: 'spammer123',
-      reason: 'Multiple spam posts',
-      bannedDate: '2023-08-15',
-    },
-    // Add more mock banned users
-  ];
-
-  if (!isAdmin) {
-    return <Navigate to="/" replace />;
+  if (loading) {
+    return (
+      <Box p={4} display="flex" justifyContent="center" alignItems="center">
+        <CircularProgress />
+      </Box>
+    );
   }
 
-  const handleTabChange = (event, newValue) => {
-    setTabValue(newValue);
-  };
-
-  const handleDeleteContent = (contentId) => {
-    // TODO: Implement content deletion
-    console.log('Delete content:', contentId);
-  };
-
-  const handleBanUser = (userId) => {
-    // TODO: Implement user banning
-    console.log('Ban user:', userId);
-  };
-
-  const handleSendMessage = () => {
-    // TODO: Implement platform-wide message
-    console.log('Send platform message:', platformMessage);
-    setPlatformMessage('');
-    setMessageDialogOpen(false);
-  };
-
   return (
-    <Box>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Admin Dashboard
+    <Box p={4}>
+      <Typography variant="h4" gutterBottom>
+        Dashboard Overview
       </Typography>
 
-      <Paper sx={{ width: '100%', mb: 3 }}>
-        <Tabs
-          value={tabValue}
-          onChange={handleTabChange}
-          indicatorColor="primary"
-          textColor="primary"
-        >
-          <Tab label="Reported Content" />
-          <Tab label="Banned Users" />
-          <Tab label="Platform Messages" />
-        </Tabs>
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+      )}
 
-        <TabPanel value={tabValue} index={0}>
-          <List>
-            {reportedContent.map((item) => (
-              <ListItem key={item.id} divider>
-                <ListItemText
-                  primary={item.title}
-                  secondary={`Reported by ${item.reportedBy} - ${item.reason}`}
-                />
-                <ListItemSecondaryAction>
-                  <IconButton
-                    edge="end"
-                    color="error"
-                    onClick={() => handleDeleteContent(item.id)}
-                    sx={{ mr: 1 }}
-                  >
-                    <Delete />
-                  </IconButton>
-                  <IconButton
-                    edge="end"
-                    color="warning"
-                    onClick={() => handleBanUser(item.author)}
-                  >
-                    <Block />
-                  </IconButton>
-                </ListItemSecondaryAction>
-              </ListItem>
-            ))}
-          </List>
-        </TabPanel>
-
-        <TabPanel value={tabValue} index={1}>
-          <List>
-            {bannedUsers.map((user) => (
-              <ListItem key={user.id} divider>
-                <ListItemText
-                  primary={user.username}
-                  secondary={`Banned on ${user.bannedDate} - ${user.reason}`}
-                />
-                <ListItemSecondaryAction>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={() => console.log('Unban user:', user.id)}
-                  >
-                    Unban
-                  </Button>
-                </ListItemSecondaryAction>
-              </ListItem>
-            ))}
-          </List>
-        </TabPanel>
-
-        <TabPanel value={tabValue} index={2}>
-          <Box sx={{ p: 3 }}>
-            <Button
-              variant="contained"
-              startIcon={<Message />}
-              onClick={() => setMessageDialogOpen(true)}
+      <Grid container spacing={3} mt={2}>
+        {adminActions.map((action) => (
+          <Grid item xs={12} sm={6} key={action.title}>
+            <Paper
+              sx={{
+                p: 3,
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                textAlign: 'center',
+                cursor: 'pointer',
+                transition: 'transform 0.2s, box-shadow 0.2s',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: (theme) => theme.shadows[4],
+                },
+              }}
+              onClick={() => handleNavigation(action.path)}
             >
-              Send Platform Message
-            </Button>
-          </Box>
-        </TabPanel>
-      </Paper>
-
-      <Dialog
-        open={messageDialogOpen}
-        onClose={() => setMessageDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Send Platform-wide Message</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Message"
-            fullWidth
-            multiline
-            rows={4}
-            value={platformMessage}
-            onChange={(e) => setPlatformMessage(e.target.value)}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setMessageDialogOpen(false)}>Cancel</Button>
-          <Button
-            onClick={handleSendMessage}
-            variant="contained"
-            disabled={!platformMessage.trim()}
-          >
-            Send
-          </Button>
-        </DialogActions>
-      </Dialog>
+              <Box
+                sx={{
+                  width: 60,
+                  height: 60,
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: `${action.color}20`,
+                  color: action.color,
+                  mb: 2,
+                }}
+              >
+                {action.icon}
+              </Box>
+              <Typography variant="h6" gutterBottom>
+                {action.title}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {action.description}
+              </Typography>
+            </Paper>
+          </Grid>
+        ))}
+      </Grid>
     </Box>
   );
 };

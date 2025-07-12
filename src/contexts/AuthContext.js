@@ -15,6 +15,26 @@ export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Add XP increment effect
+  useEffect(() => {
+    if (!user || !isAuthenticated) return;
+
+    const incrementXP = () => {
+      setUser(prevUser => ({
+        ...prevUser,
+        xp: {
+          ...prevUser.xp,
+          total: (prevUser.xp?.total || 0) + 10
+        },
+        levelTitle: `Level ${Math.floor(((prevUser.xp?.total || 0) + 10) / 100) + 1}`
+      }));
+    };
+
+    const interval = setInterval(incrementXP, 40000); // 40 seconds
+
+    return () => clearInterval(interval);
+  }, [user, isAuthenticated]);
+
   // Initialize auth state
   useEffect(() => {
     const initializeAuth = async () => {

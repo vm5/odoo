@@ -6,7 +6,7 @@ const User = require('../models/User');
 // @access  Public
 exports.getPosts = async (req, res) => {
   try {
-    const { hub, type, author } = req.query;
+    const { hub, type, author, flagged } = req.query;
     const query = {};
 
     // Validate and sanitize hub parameter
@@ -23,6 +23,7 @@ exports.getPosts = async (req, res) => {
 
     if (type) query.type = type;
     if (author) query.author = author;
+    if (flagged === 'true') query.isFlagged = true;
 
     const posts = await Post.find(query)
       .populate('author', 'name level streak avatar')
@@ -499,6 +500,31 @@ exports.votePoll = async (req, res) => {
     res.status(400).json({
       success: false,
       error: err.message
+    });
+  }
+}; 
+
+// @desc    Get post statistics
+// @route   GET /api/posts/stats
+// @access  Public
+exports.getPostStats = async (req, res) => {
+  try {
+    const [total, flagged] = await Promise.all([
+      Post.countDocuments(),
+      Post.countDocuments({ isFlagged: true })
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        total,
+        flagged
+      }
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: 'Server Error'
     });
   }
 }; 

@@ -1,4 +1,5 @@
 const express = require('express');
+const router = express.Router();
 const {
   getPosts,
   getPost,
@@ -6,24 +7,23 @@ const {
   updatePost,
   deletePost,
   votePost,
-  addReaction,
-  votePoll
+  acceptAnswer,
+  getPostStats
 } = require('../controllers/posts');
 const { protect } = require('../middleware/auth');
 
-const router = express.Router();
+// Stats route must come before :id route to avoid being treated as an ID
+router.get('/stats', getPostStats);
 
-router.route('/')
-  .get(getPosts)
-  .post(protect, createPost);
+// Public routes
+router.get('/', getPosts);
+router.get('/:id', getPost);
 
-router.route('/:id')
-  .get(getPost)
-  .put(protect, updatePost)
-  .delete(protect, deletePost);
-
+// Protected routes
+router.post('/', protect, createPost);
+router.put('/:id', protect, updatePost);
+router.delete('/:id', protect, deletePost);
 router.put('/:id/vote', protect, votePost);
-router.put('/:id/react', protect, addReaction);
-router.put('/:id/poll-vote', protect, votePoll);
+router.put('/:id/accept', protect, acceptAnswer);
 
 module.exports = router; 

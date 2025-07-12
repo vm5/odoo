@@ -76,6 +76,23 @@ const postSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  isFlagged: {
+    type: Boolean,
+    default: false
+  },
+  moderationNote: {
+    type: String,
+    default: null
+  },
+  moderatedBy: {
+    type: mongoose.Schema.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  moderatedAt: {
+    type: Date,
+    default: null
+  },
   createdAt: {
     type: Date,
     default: Date.now

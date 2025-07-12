@@ -22,13 +22,13 @@ import {
 import { useParams, Link as RouterLink } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import RichTextEditor from '../components/editor/RichTextEditor';
-import { getPost, createPost, updatePost, votePost, voteOnPost, acceptAnswer } from '../services/postService';
+import { getPost, createPost, updatePost, votePost, acceptAnswer } from '../services/postService';
 import socketService from '../services/socketService';
 import AnswerComment from '../components/interactions/AnswerComment';
 
 const QuestionDetail = () => {
   const { id } = useParams();
-  const { isAuthenticated, user, triggerXPAction } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [question, setQuestion] = useState(null);
   const [answers, setAnswers] = useState([]);
   const [newAnswer, setNewAnswer] = useState('');
@@ -83,82 +83,110 @@ const QuestionDetail = () => {
     }
   };
 
-  const handleAnswerSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+  const handleAnswerSubmit = async () => {
+    if (!isAuthenticated) {
+      setError('Please log in to post an answer');
+      return;
+    }
+
+    if (!newAnswer.trim()) {
+      setError('Answer cannot be empty');
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
 
     try {
-      const response = await createPost({
+      const newAnswerResponse = await createPost({
         type: 'answer',
         content: newAnswer,
-        parentPost: id
+        parentPost: id,
       });
 
-      // Trigger XP for answering
-      triggerXPAction('answer_added');
+      setNewAnswer('');
+      setSuccess(true);
+      
+      // Emit the new post event
+      socketService.emitNewPost(newAnswerResponse);
+
+      // Extract mentions from the answer content
+      const mentionRegex = /(?:<span class="tox-mention" data-mention-id="([^"]+)">@([^<]+)<\/span>|@([a-zA-Z0-9_-]+))/g;
+      const mentions = [...newAnswer.matchAll(mentionRegex)];
+      
+      // Send notifications for mentions
+      mentions.forEach(match => {
+        // Handle both rich text editor mentions and plain text mentions
+        const userId = match[1] || match[3];  // match[1] for rich text, match[3] for plain text
+        const username = match[2] || match[3]; // match[2] for rich text, match[3] for plain text
+        
+        if (userId && username && userId !== user._id) {
+          socketService.emitMentionNotification(
+            userId,
+            newAnswerResponse._id,
+            user.name
+          );
+        }
+      });
+
+      // Emit notification for the question author
+      if (question?.author?._id && question.author._id !== user._id) {
+        console.log('Emitting answer notification:', {
+          questionId: id,
+          answerId: newAnswerResponse._id,
+          authorId: question.author._id
+        });
+        
+        socketService.emitAnswerNotification(
+          id, // questionId
+          newAnswerResponse._id, // answerId
+          question.author._id // authorId
+        );
+
+        // Trigger notification sound
+        window.triggerInteraction?.('notification');
+      }
+
+      // Fetch updated question to get the new answers array
+      fetchQuestionAndAnswers();
 
       // Show success message
       window.triggerInteraction?.('answer_posted');
-
-      // Clear form and refresh
-      setNewAnswer('');
-      fetchQuestionAndAnswers();
-    } catch (error) {
-      setError(error.message || 'Failed to submit answer');
-    }
-    setLoading(false);
-  };
-
-  const handleCommentSubmit = async (answerId, comment) => {
-    try {
-      const response = await createPost({
-        type: 'comment',
-        content: comment,
-        parentPost: answerId
-      });
-
-      // Trigger XP for commenting
-      triggerXPAction('comment_added');
-
-      // Show success message
-      window.triggerInteraction?.('comment_posted');
-
-      // Refresh the answers to show new comment
-      fetchQuestionAndAnswers();
-    } catch (error) {
-      console.error('Failed to add comment:', error);
+    } catch (err) {
+      console.error('Error posting answer:', err);
+      setError(err?.response?.data?.error || 'Failed to post answer');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleVote = async (postId, voteType) => {
-    try {
-      await voteOnPost(postId, voteType);
-      
-      // Trigger XP for voting
-      triggerXPAction('vote_cast');
+  const handleVote = async (answerId, value) => {
+    if (!isAuthenticated) {
+      setError('Please log in to vote');
+      return;
+    }
 
-      // Refresh to show updated votes
-      fetchQuestionAndAnswers();
-    } catch (error) {
-      console.error('Failed to vote:', error);
+    try {
+      await votePost(answerId, value);
+      fetchQuestionAndAnswers(); // Refresh votes
+    } catch (err) {
+      setError('Failed to vote');
     }
   };
 
   const handleAcceptAnswer = async (answerId) => {
+    if (!isAuthenticated || (question?.author?._id !== user?._id)) {
+      setError('Only the question author can accept answers');
+      return;
+    }
+
     try {
       await acceptAnswer(answerId);
-      
-      // Trigger XP for accepting an answer
-      triggerXPAction('answer_accepted');
-
-      // Show success message
+      fetchQuestionAndAnswers(); // Refresh question and answers
+      // Trigger success interaction
       window.triggerInteraction?.('answer_accepted');
-
-      // Refresh to show accepted answer
-      fetchQuestionAndAnswers();
-    } catch (error) {
-      console.error('Failed to accept answer:', error);
+    } catch (err) {
+      setError('Failed to accept answer');
     }
   };
 
@@ -314,62 +342,53 @@ const QuestionDetail = () => {
           {/* Answers List */}
           <Box>
             {answers.map((answer) => (
-              <Box
-                key={answer._id}
-                sx={{
-                  px: 3,
-                  py: 2,
-                  borderBottom: '1px solid',
-                  borderColor: 'divider',
-                  '&:last-child': {
-                    borderBottom: 'none'
-                  }
-                }}
-              >
-                <AnswerComment
-                  answer={answer}
-                  onVote={handleVote}
-                  onAccept={handleAcceptAnswer}
-                  isQuestionAuthor={question.author?._id === user?._id}
-                  isAccepted={question.acceptedAnswer === answer._id}
-                  calculateVotes={calculateVotes}
-                  onComment={async (content) => {
-                    try {
-                      const commentResponse = await createPost({
-                        type: 'comment',
-                        content,
-                        parentPost: answer._id,
-                      });
-
-                      // Emit the new post event
-                      socketService.emitNewPost(commentResponse);
-
-                      // Emit notification for the comment
-                      if (answer.author?._id && answer.author._id !== user?._id) {
-                        console.log('Emitting comment notification:', {
-                          answerId: answer._id,
-                          commentId: commentResponse._id,
-                          authorId: answer.author._id
-                        });
-                        socketService.emitCommentNotification(
-                          answer._id,
-                          commentResponse._id,
-                          answer.author._id
-                        );
-                      }
-
-                      // Refresh the answers to show the new comment
-                      fetchQuestionAndAnswers();
-
-                      return commentResponse;
-                    } catch (err) {
-                      console.error('Error posting comment:', err);
-                      setError('Failed to post comment');
-                      throw err;
-                    }
-                  }}
-                />
-              </Box>
+              <Paper key={answer._id} elevation={2} sx={{ p: 3, mb: 2, position: 'relative' }}>
+                {answer.isAccepted && (
+                  <Chip
+                    icon={<CheckCircle />}
+                    label="Accepted Answer"
+                    color="success"
+                    sx={{ position: 'absolute', top: 8, right: 8 }}
+                  />
+                )}
+                <Stack direction="row" spacing={2} alignItems="flex-start">
+                  <Stack direction="column" alignItems="center" spacing={1}>
+                    <IconButton
+                      onClick={() => handleVote(answer._id, true)}
+                      color={answer.userVote === 1 ? 'primary' : 'default'}
+                    >
+                      <ThumbUp />
+                    </IconButton>
+                    <Typography variant="body2">{answer.totalVotes || 0}</Typography>
+                    <IconButton
+                      onClick={() => handleVote(answer._id, false)}
+                      color={answer.userVote === -1 ? 'error' : 'default'}
+                    >
+                      <ThumbDown />
+                    </IconButton>
+                    {question?.author?._id === user?._id && !answer.isAccepted && !question.hasAcceptedAnswer && (
+                      <Tooltip title="Accept this answer">
+                        <IconButton
+                          onClick={() => handleAcceptAnswer(answer._id)}
+                          color="success"
+                          sx={{ mt: 1 }}
+                        >
+                          <CheckCircle />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                  </Stack>
+                  <Box flex={1}>
+                    <div dangerouslySetInnerHTML={{ __html: answer.content }} />
+                    <Stack direction="row" spacing={1} alignItems="center" mt={2}>
+                      <Avatar src={answer.author?.avatar} alt={answer.author?.name} />
+                      <Typography variant="body2" color="text.secondary">
+                        {answer.author?.name}
+                      </Typography>
+                    </Stack>
+                  </Box>
+                </Stack>
+              </Paper>
             ))}
           </Box>
         </Box>

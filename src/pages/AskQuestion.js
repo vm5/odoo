@@ -107,12 +107,6 @@ const AskQuestion = () => {
         console.warn('Interaction trigger not available:', error);
       }
 
-      // Trigger XP for creating a post
-      window.triggerXPAction?.('post_created');
-
-      // Show success message
-      window.triggerInteraction?.('post_created');
-
       // Navigate to the new question
       navigate(`/question/${typeof newPost._id === 'string' ? newPost._id : String(newPost._id)}`);
     } catch (error) {

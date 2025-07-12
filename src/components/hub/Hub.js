@@ -7,20 +7,12 @@ import socketService from '../../services/socketService';
 const Hub = () => {
   const { tag } = useParams();
   const [tabValue, setTabValue] = useState(0);
-  const { isAuthenticated, user, triggerXPAction } = useAuth();
-
-  useEffect(() => {
-    if (isAuthenticated && user && tag) {
-      // Join hub and trigger XP
-      socketService.joinHub(tag);
-      triggerXPAction('hub_joined');
-    }
-  }, [isAuthenticated, user, tag]);
+  const { isAuthenticated } = useAuth();
 
   const mockPosts = [
     {
       _id: '1',
-      type: 'poll',
+        type: 'poll',
       title: 'Best Web3 Stack?',
       content: 'Vote for your favorite!',
       author: { name: 'CryptoWizard', level: 'Pro 🌟' },
@@ -39,18 +31,6 @@ const Hub = () => {
     }
   ];
 
-  const handleVote = (postId, optionIndex) => {
-    if (!isAuthenticated) return;
-    // Handle vote and trigger XP
-    triggerXPAction('vote_cast');
-  };
-
-  const handleReaction = (postId, reaction) => {
-    if (!isAuthenticated) return;
-    // Handle reaction and trigger XP
-    triggerXPAction('reaction_added');
-  };
-
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" gutterBottom>
@@ -63,14 +43,14 @@ const Hub = () => {
           <Tab label="Memes" />
           <Tab label="Polls" />
         </Tabs>
-      </Box>
+            </Box>
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         {mockPosts.map(post => (
           <Box key={post._id} sx={{ 
             p: 3, 
-            bgcolor: 'background.paper',
-            borderRadius: 2,
+                      bgcolor: 'background.paper',
+                      borderRadius: 2,
             boxShadow: 1
           }}>
             <Typography variant="h6">{post.title || post.content}</Typography>
@@ -82,7 +62,6 @@ const Hub = () => {
                     variant="outlined" 
                     fullWidth 
                     sx={{ mt: 1 }}
-                    onClick={() => handleVote(post._id, idx)}
                   >
                     {option.text} ({option.votes} votes)
                   </Button>
@@ -91,20 +70,15 @@ const Hub = () => {
             )}
             <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
               {post.reactions && Object.entries(post.reactions).map(([emoji, count]) => (
-                <Button 
-                  key={emoji} 
-                  size="small" 
-                  variant="outlined"
-                  onClick={() => handleReaction(post._id, emoji)}
-                >
+                <Button key={emoji} size="small" variant="outlined">
                   {emoji} {count}
                 </Button>
               ))}
             </Box>
             <Typography variant="caption" sx={{ mt: 1, display: 'block' }}>
               Posted by {post.author.name} • {post.author.level}
-            </Typography>
-          </Box>
+        </Typography>
+      </Box>
         ))}
       </Box>
     </Box>

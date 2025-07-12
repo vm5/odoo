@@ -134,24 +134,10 @@ export const votePoll = async (id, optionIndex) => {
   }
 }; 
 
-export const voteOnPost = async (postId, voteType) => {
+export const acceptAnswer = async (id) => {
   try {
     const { data } = await axios.put(
-      `${API_URL}/posts/${postId}/vote`,
-      { value: voteType },
-      getAuthConfig()
-    );
-    return data.data;
-  } catch (error) {
-    console.error('Failed to vote on post:', error);
-    throw error;
-  }
-};
-
-export const acceptAnswer = async (answerId) => {
-  try {
-    const { data } = await axios.put(
-      `${API_URL}/posts/${answerId}/accept`,
+      `${API_URL}/posts/${id}/accept`,
       {},
       getAuthConfig()
     );

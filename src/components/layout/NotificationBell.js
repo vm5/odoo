@@ -81,7 +81,7 @@ const NotificationBell = () => {
         }}
       >
         <Badge 
-          badgeContent={unreadCount} 
+          badgeContent={unreadCount > 0 ? unreadCount : null} 
           color="error"
           sx={{
             '& .MuiBadge-badge': {
