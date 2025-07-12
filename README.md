@@ -1,3 +1,6 @@
+
+## team name: team 3150
+## problem statement: StackIt – A Minimal Q&A Forum Platform
 # StackIt Q&A Platform
 
 A modern Q&A platform built with React and Node.js, featuring real-time interactions and gamification elements.
